@@ -1,0 +1,117 @@
+# import necessary libraiers 
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torchvision import datasets
+import torchvision.transforms as transforms
+import matplotlib.pyplot as pt
+import numpy as np
+
+# model build
+class FirstModel(nn.Module):
+
+#__init__ function,listing all the layers used in model
+  def __init__(self):
+    super(FirstModel, self).__init__()
+
+    self.flatten = nn.Flatten() # converts the 2D into the array for the 784 pixels
+    self.layer1 = torch.nn.Linear(784,512) # first layer to be established, fashion data takes in a 28x28 pixels for a 784 in total
+    self.hidden = torch.nn.Linear(512,256) # second layer, hidden
+    self.output = torch.nn.Linear(256,10) # output layer which gives resutls
+
+    self.active = nn.ReLU() # activation function
+
+# functions are passed in and the activation functions are applied, forward propagation
+  def forward(self,x):
+    x = self.flatten(x)
+    x = self.layer1(x)
+    x = self.active(x)
+    x = self.hidden(x)
+    x = self.active(x)
+    x = self.output(x)
+
+    return x
+
+# gather data and upload using PyTorch libray already in place
+transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize((0.2860,), (0.3530,))
+])
+
+training_data = datasets.FashionMNIST(root="data", train=True, download=True, transform=transform)
+test_data = datasets.FashionMNIST(root="data", train=False, download=True, transform=transform)
+
+# training beings 
+model = FirstModel()
+
+train_loader = torch.utils.data.DataLoader(training_data, batch_size=198, shuffle=True)
+test_loader = torch.utils.data.DataLoader(test_data, batch_size=198, shuffle=False)
+
+#Loss Function
+criterion = nn.CrossEntropyLoss()
+
+#Usually learning rates
+learning_rate = 0.001
+
+#Optimizer
+optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+
+#Training loop
+num_epochs = 10
+for epoch in range(num_epochs):
+    #Sets the model to training mode
+    model.train()
+    running_loss = 0.0
+    for i, (inputs, labels) in enumerate(train_loader):
+        optimizer.zero_grad()
+
+        outputs = model(inputs)
+
+        loss = criterion(outputs, labels)
+
+        loss.backward()
+
+        optimizer.step()
+
+        running_loss += loss.item()
+
+    print(f'Epoch {epoch+1}/{num_epochs}, Loss: {loss.item()}')
+
+# evluate model and the outputs
+model.eval()
+incorrect_cases = []
+correct = 0
+total = 0
+
+with torch.no_grad(): # no longer needidng gradient descent
+    for inputs, labels in train_loader:
+        outputs = model(inputs)
+        _, predicted = torch.max(outputs.data, 1)
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
+
+        for i in range(len(labels)):
+            if predicted[i] != labels[i]:
+                incorrect_cases.append((inputs[i], labels[i], outputs[i]))
+
+print(f'Accuracy of the network on the 10000 test images: {100 * correct / total:.2f}%')
+
+class_names = ['T-shirt/top', 'Trouser', 'Pullover', 'Dress', 'Coat',
+               'Sandal', 'Shirt', 'Sneaker', 'Bag', 'Ankle boot']
+
+# print and graph the predictions vs actual
+def imshow(img, label, predicted):
+    img = img / 2 + 0.5
+    npimg = img.numpy()
+    pt.imshow(np.transpose(npimg, (1, 2, 0)))
+    pt.title(f'Actual: {class_names[label]}, Predicted: {class_names[predicted]}')
+    pt.show()
+
+dataiter = iter(test_loader)
+images, labels = next(dataiter)
+outputs = model(images)
+_, predicted = torch.max(outputs, 1)
+
+# Show some sample images with predictions
+for i in range(num_epochs):
+    imshow(images[i], labels[i].item(), predicted[i].item())
